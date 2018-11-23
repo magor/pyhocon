@@ -359,22 +359,11 @@ class ConfigParser(object):
         :return: (is_resolved, resolved_variable)
         """
         variable = substitution.variable
-        try:
-            return True, config.get(variable)
-        except ConfigMissingException:
-            # default to environment variable
-            value = os.environ.get(variable)
 
-            if value is None:
-                if substitution.optional:
-                    return False, None
-                else:
-                    raise ConfigSubstitutionException(
-                        "Cannot resolve variable ${{{variable}}} (line: {line}, col: {col})".format(
-                            variable=variable,
-                            line=lineno(substitution.loc, substitution.instring),
-                            col=col(substitution.loc, substitution.instring)))
-            elif isinstance(value, ConfigList) or isinstance(value, ConfigTree):
+        value = os.environ.get(variable)
+        if value is not None:
+            # environment variable has higher priority
+            if isinstance(value, ConfigList) or isinstance(value, ConfigTree):
                 raise ConfigSubstitutionException(
                     "Cannot substitute variable ${{{variable}}} because it does not point to a "
                     "string, int, float, boolean or null {type} (line:{line}, col: {col})".format(
@@ -383,6 +372,19 @@ class ConfigParser(object):
                         line=lineno(substitution.loc, substitution.instring),
                         col=col(substitution.loc, substitution.instring)))
             return True, value
+        else:
+            # default to configuration variable
+            try:
+                return True, config.get(variable)
+            except ConfigMissingException:
+                if substitution.optional:
+                    return False, None
+                else:
+                    raise ConfigSubstitutionException(
+                        "Cannot resolve variable ${{{variable}}} (line: {line}, col: {col})".format(
+                            variable=variable,
+                            line=lineno(substitution.loc, substitution.instring),
+                            col=col(substitution.loc, substitution.instring)))
 
     @classmethod
     def _fixup_self_references(cls, config, accept_unresolved=False):
